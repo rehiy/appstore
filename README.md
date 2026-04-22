@@ -1,6 +1,6 @@
 # AppStore — Docker 应用市场
 
-基于 [1Panel AppStore](https://github.com/1Panel-dev/appstore) 数据源构建的 Docker 应用市场前端，提供可视化的应用浏览、搜索和安装体验。
+现代化的 Docker 应用市场前端，提供可视化的应用浏览、搜索和安装体验。
 
 ## 功能特性
 
@@ -29,7 +29,7 @@ appstore/
 
 `build.py` 执行以下步骤：
 
-1. 从 GitHub 下载 1Panel AppStore 源码（`dev` 分支）
+1. 从 GitHub 下载应用商店源码
 2. 解析每个应用的 `data.yml`，生成 `index.json`（仅含元信息与版本号）
 3. 为每个版本在 `storage/{app}/{version}/` 下生成：
    - `meta.yml` — 包含 `compose`（原始模板，含 `${VAR}` 占位符）、`formFields`（表单字段定义）、可选 `init`（附加运行文件）
@@ -119,5 +119,4 @@ window.addEventListener('message', (event) => {
 
 ## 致谢
 
-- [1Panel AppStore](https://github.com/1Panel-dev/appstore) — 提供丰富的 Docker 应用模板和配置文件
 - [GitHub Markdown CSS](https://github.com/sindresorhus/github-markdown-css) — GitHub 风格 Markdown 样式
