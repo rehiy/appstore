@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Docker 应用商店</title>
+  <title>aaPanel 应用商店</title>
   <script src="https://jscdn.rehi.org/npm/tailwindcss-cdn@3/tailwindcss.min.js"></script>
   <script src="https://jscdn.rehi.org/npm/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://jscdn.rehi.org/npm/marked@15/marked.min.js"></script>
@@ -44,9 +44,9 @@
       <!-- 左侧：品牌 -->
       <div class="flex items-center gap-2.5 min-w-0">
         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-sky-500/30">
-          <i class="fa-brands fa-docker text-white text-base"></i>
+          <i class="fa-solid fa-cubes text-white text-base"></i>
         </div>
-        <h1 class="text-base md:text-lg font-semibold text-slate-800 truncate">Docker 应用市场</h1>
+        <h1 class="text-base md:text-lg font-semibold text-slate-800 truncate">aaPanel 应用市场</h1>
       </div>
 
       <!-- 右侧：GitHub -->
@@ -450,12 +450,12 @@
           </template>
 
           <!-- meta.yml 加载状态提示 -->
-          <div v-if="metaLoading" class="flex items-center gap-2 text-xs text-slate-500 py-2">
+          <div v-if="appLoading" class="flex items-center gap-2 text-xs text-slate-500 py-2">
             <div class="w-4 h-4 border-2 border-slate-200 border-t-sky-500 rounded-full animate-spin"></div>
-            正在加载版本信息...
+            正在加载应用信息...
           </div>
-          <div v-else-if="metaError" class="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            <i class="fa-solid fa-triangle-exclamation mr-1"></i>{{ metaError }}
+          <div v-else-if="appError" class="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <i class="fa-solid fa-triangle-exclamation mr-1"></i>{{ appError }}
           </div>
 
         </div>
@@ -543,7 +543,6 @@ createApp({
   setup() {
     const loading = ref(true);
     const error = ref('');
-    const storeVersion = ref('');
     const tags = ref([]);
     const allApps = ref([]);
     const activeTag = ref('');
@@ -583,7 +582,7 @@ createApp({
       return icons[key] || 'fa-solid fa-tag';
     };
 
-    const appIconUrl = (key) => `./storage/${key}/logo.png`;
+    const appIconUrl = (key) => `./storage/apps/${key}/ico-dkapp_${key}.png`;
 
     // 懒加载：IntersectionObserver，避免重复 observe
     const lazyObserver = new IntersectionObserver((entries) => {
@@ -618,6 +617,24 @@ createApp({
       });
     };
 
+    const buildVersions = (appJson) => {
+      if (!appJson) return {};
+      const versions = {};
+      const list = appJson.appversion || appJson.version || [];
+      list.forEach(item => {
+        const base = item.m_version || item.version || '';
+        const subs = item.s_version || item.sversions || [];
+        if (Array.isArray(subs) && subs.length) {
+          subs.forEach(sub => {
+            versions[`${base}.${sub}`] = item;
+          });
+        } else if (base) {
+          versions[base] = item;
+        }
+      });
+      return versions;
+    };
+
     const filteredApps = computed(() => {
       let list = allApps.value;
       if (activeTag.value) {
@@ -639,7 +656,7 @@ createApp({
       readmeLoading.value = true;
       readmeHtml.value = '';
       try {
-        const res = await fetch(`./storage/${key}/README.md`);
+        const res = await fetch(`./storage/apps/${key}/README.md`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
         readmeHtml.value = marked.parse(text);
@@ -660,31 +677,37 @@ createApp({
 
     onMounted(async () => {
       try {
-        const res = await fetch('./index.json');
+        const res = await fetch('./storage/pkg/apps.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        storeVersion.value = data.version || '';
-        tags.value = (data.tags || []).sort((a, b) => a.sort - b.sort);
-
-        const apps = [];
-        for (const [key, appData] of Object.entries(data.apps || {})) {
-          apps.push({
-            key,
-            name: appData.name || key,
-            title: appData.title || '',
-            shortDescZh: appData.description?.zh || appData.description || '',
-            // tags 统一使用英文 key（与 tagMap 保持一致）
-            tags: appData.tags || [],
-            website: appData.website || '',
-            github: appData.github || '',
-            document: appData.document || '',
-            architectures: appData.architectures || [],
-            versions: appData.versions || {},
-          });
-        }
+        const categories = new Set();
+        const apps = (Array.isArray(data) ? data : []).map(item => {
+          const tags = [];
+          if (item.appTypeCN) {
+            tags.push(item.appTypeCN);
+            categories.add(item.appTypeCN);
+          }
+          return {
+            key: item.appname,
+            name: item.apptitle || item.appname,
+            title: item.apptitle || item.appname,
+            description: item.appdesc || item.help || '',
+            website: item.home || '',
+            github: item.github || '',
+            document: item.help || item.home || '',
+            architectures: item.architectures || [],
+            versions: buildVersions(item),
+            tags,
+            field: item.field || [],
+            env: item.env || [],
+            volumes: item.volumes || {},
+            help: item.help || '',
+          };
+        });
+        tags.value = [...categories].sort().map(key => ({ key, name: key }));
         allApps.value = apps.sort((a, b) => a.name.localeCompare(b.name));
       } catch (e) {
-        console.error('加载 index.json 失败', e);
+        console.error('加载应用数据失败', e);
         error.value = '加载数据失败：' + (e.message || String(e));
       } finally {
         loading.value = false;
@@ -700,17 +723,32 @@ createApp({
     const scriptCopied = ref(false);
     const scriptError = ref('');
 
-    // 版本级 meta.yml 缓存：{ 'key@version': { compose, init?, formFields } }
-    const metaCache = new Map();
-    const metaLoading = ref(false);
-    const metaError = ref('');
-    // 当前加载好的 meta（响应式）
-    const currentMeta = ref(null);
+    const currentApp = ref(null);
+    const appLoading = ref(false);
+    const appError = ref('');
 
-    // 当前版本的 formFields（来自 meta.yml）
-    const currentFormFields = computed(() => {
-      return currentMeta.value?.formFields || [];
-    });
+    const currentFormFields = computed(() => currentApp.value?.formFields || []);
+
+    const normalizeValue = (value, type) => {
+      if (type === 'checkbox') {
+        if (typeof value === 'string') {
+          const s = value.trim().toLowerCase();
+          return ['1', 'true', 'yes', 'on'].includes(s);
+        }
+        return Boolean(value);
+      }
+      return value == null ? '' : value;
+    };
+
+    const mapFieldType = (rawType) => {
+      if (!rawType) return 'text';
+      const type = String(rawType).toLowerCase();
+      if (['number', 'port'].includes(type)) return 'number';
+      if (['password', 'password1', 'password2', 'defaultpassword', 'defaultpassword1', 'defaultpassword2'].includes(type)) return 'password';
+      if (['checkbox', 'bool', 'boolean'].includes(type)) return 'checkbox';
+      if (['textarea'].includes(type)) return 'textarea';
+      return 'text';
+    };
 
     // 根据 formFields 初始化表单字段默认值
     const initFormFields = (fields) => {
@@ -719,42 +757,107 @@ createApp({
       return result;
     };
 
-    // 加载指定 app/version 的 meta.yml（带缓存）
-    const loadMeta = async (appKey, version) => {
-      const cacheKey = `${appKey}@${version}`;
-      if (metaCache.has(cacheKey)) {
-        return metaCache.get(cacheKey);
-      }
-      const res = await fetch(`./storage/${appKey}/${version}/meta.yml`);
+    const buildFormFields = (appJson) => {
+      const fields = [];
+      const seen = new Set();
+
+      (appJson.field || []).forEach(item => {
+        const attr = item.attr || item.key;
+        if (!attr) return;
+        const envKey = String(attr).trim().toUpperCase();
+        seen.add(envKey);
+        const type = mapFieldType(item.type);
+        const defaultValue = normalizeValue(item.default, type);
+        fields.push({
+          label: { zh: item.name || envKey, en: item.name || envKey },
+          envKey,
+          type,
+          default: defaultValue,
+          required: item.default == null || item.default === '',
+          suffix: item.suffix || item.unit || '',
+          unit: item.unit || '',
+        });
+      });
+
+      (appJson.env || []).forEach(item => {
+        const key = item.key;
+        if (!key) return;
+        const envKey = String(key).trim().toUpperCase();
+        if (seen.has(envKey)) return;
+        seen.add(envKey);
+        const type = mapFieldType(item.type);
+        const defaultValue = normalizeValue(item.default, type);
+        fields.push({
+          label: { zh: item.desc || envKey, en: item.desc || envKey },
+          envKey,
+          type,
+          default: defaultValue,
+          required: item.default == null || item.default === '',
+          suffix: '',
+          unit: '',
+        });
+      });
+
+      return fields;
+    };
+
+    const tryFetchText = async (url) => {
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const meta = jsyaml.load(text) || {};
-      metaCache.set(cacheKey, meta);
-      return meta;
+      return res.text();
     };
 
-    // 加载当前选中版本的 meta.yml 并初始化表单
-    const loadCurrentMeta = async () => {
-      if (!installPanel.value || !installForm.value.version) return;
-      metaLoading.value = true;
-      metaError.value = '';
-      currentMeta.value = null;
+    const loadComposeText = async (appKey) => {
+      const candidates = [
+        `./storage/apps/${appKey}/${appKey}/docker-compose.yml`,
+        `./storage/apps/${appKey}/${appKey}/docker-compose.yaml`,
+        `./storage/apps/${appKey}/${appKey}/compose.yml`,
+        `./storage/apps/${appKey}/${appKey}/compose.yaml`,
+        `./storage/apps/${appKey}/docker-compose.yml`,
+        `./storage/apps/${appKey}/docker-compose.yaml`,
+        `./storage/apps/${appKey}/compose.yml`,
+        `./storage/apps/${appKey}/compose.yaml`,
+      ];
+      for (const path of candidates) {
+        try {
+          return await tryFetchText(path);
+        } catch (e) {
+          if (!e.message.includes('404')) {
+            console.warn(`尝试加载 compose 失败 ${path}`, e);
+          }
+        }
+      }
+      throw new Error('未找到 docker-compose 文件');
+    };
+
+    const loadAppPackage = async (appKey) => {
+      appLoading.value = true;
+      appError.value = '';
+      currentApp.value = null;
       try {
-        const meta = await loadMeta(installPanel.value.key, installForm.value.version);
-        currentMeta.value = meta;
-        installForm.value.fields = initFormFields(meta.formFields);
+        const res = await fetch(`./storage/apps/${appKey}/app.json`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const appJson = await res.json();
+        const fields = buildFormFields(appJson);
+        const compose = await loadComposeText(appKey);
+        currentApp.value = {
+          appJson,
+          formFields: fields,
+          compose,
+        };
+        installForm.value.fields = initFormFields(fields);
       } catch (e) {
-        metaError.value = '加载版本信息失败：' + (e.message || String(e));
+        currentApp.value = null;
+        appError.value = '加载应用信息失败：' + (e.message || String(e));
       } finally {
-        metaLoading.value = false;
+        appLoading.value = false;
       }
     };
 
-    // 切换版本时重新拉 meta
     const onVersionChange = () => {
       showPasswords.value = {};
       installError.value = '';
-      loadCurrentMeta();
+      appError.value = '';
     };
 
     const openInstall = (app) => {
@@ -767,7 +870,9 @@ createApp({
       };
       showPasswords.value = {};
       installError.value = '';
-      loadCurrentMeta();
+      currentApp.value = null;
+      appError.value = '';
+      loadAppPackage(app.key);
     };
 
     // 实例名清洗：仅保留 docker 容器名允许的字符 [a-zA-Z0-9_.-]
@@ -816,42 +921,22 @@ createApp({
     const buildInstallPayload = () => {
       const app = installPanel.value;
       const version = installForm.value.version;
-      const meta = currentMeta.value || {};
       const rawName = installForm.value.name;
       const safeName = sanitizeName(rawName, app.key);
       const userFields = JSON.parse(JSON.stringify(installForm.value.fields));
-
-      // 合并 env：用户表单 + 系统派生（系统变量覆盖同名用户输入）
       const env = {
         ...userFields,
         APP_NAME: safeName,
         CONTAINER_NAME: safeName,
         NETWORK_NAME,
       };
-
-      // 前端做 compose 插值
-      const composeText = interpolateCompose(meta.compose || '', env);
-
-      // init.zip 绝对 URL（仅当该版本存在时）
-      let initURL;
-      if (meta.init) {
-        const rel = `./storage/${app.key}/${version}/${meta.init}`;
-        initURL = new URL(rel, window.location.href).href;
-      }
-
-      // 精简协议：
-      // - name     : 实例名（作为目录名 / compose project 名）
-      // - compose  : 已插值完毕的完整 yml（直接落盘即可启动）
-      // - initURL  : 可选，附加运行文件 zip 下载地址
+      const composeText = interpolateCompose(currentApp.value?.compose || '', env);
       const raw = {
-        source: 'marketplace',
+        source: 'aaPanel-raw',
         type: 'install',
         name: safeName,
         compose: composeText,
       };
-      if (initURL) raw.initURL = initURL;
-
-      // 附加：shell 脚本生成需要的上下文（不参与 postMessage 协议）
       Object.defineProperty(raw, '__scriptContext', {
         enumerable: false,
         value: {
@@ -860,40 +945,25 @@ createApp({
           networkName: env.NETWORK_NAME,
         },
       });
-
       return raw;
     };
 
     // 生成安装 shell 脚本（非 iframe 环境使用）
-    // 脚本直接嵌入已插值的 compose 文本；如有 initURL 则先下载并解压 init.zip 到目录
     const buildInstallScript = (payload) => {
-      // 转义 shell 单引号：a'b -> 'a'\\''b'
       const shq = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;
-
-      const { name, compose, initURL } = payload;
+      const { name, compose } = payload;
       const ctx = payload.__scriptContext || {};
       const appKey = ctx.appKey || name;
       const versionValue = ctx.versionValue || '';
       const networkName = ctx.networkName || 'app-network';
-
       const lines = [
         `#!/usr/bin/env bash`,
         `# ${appKey} ${versionValue} 安装脚本`,
         `set -euo pipefail`,
         ``,
-        `# ============ 基础依赖检查 ============`,
         `command -v docker >/dev/null 2>&1 || { echo "✗ 未检测到 docker，请先安装 Docker" >&2; exit 1; }`,
         `docker compose version >/dev/null 2>&1 || { echo "✗ 未检测到 docker compose 插件（docker compose v2）" >&2; exit 1; }`,
-      ];
-      if (initURL) {
-        lines.push(
-          `command -v curl  >/dev/null 2>&1 || { echo "✗ 未检测到 curl"  >&2; exit 1; }`,
-          `command -v unzip >/dev/null 2>&1 || { echo "✗ 未检测到 unzip" >&2; exit 1; }`,
-        );
-      }
-      lines.push(
         ``,
-        `# ============ 配置 ============`,
         `APP_KEY=${shq(appKey)}`,
         `APP_NAME=${shq(name)}`,
         `APP_VERSION=${shq(versionValue)}`,
@@ -901,13 +971,11 @@ createApp({
         `INSTALL_DIR="$INSTALL_ROOT/$APP_KEY/$APP_NAME"`,
         `NETWORK_NAME=${shq(networkName)}`,
         ``,
-        `# ============ 确保应用所需网络存在 ============`,
         `if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then`,
         `  echo "==> 创建网络 $NETWORK_NAME"`,
         `  docker network create "$NETWORK_NAME" >/dev/null`,
         `fi`,
         ``,
-        `# ============ 准备目录 ============`,
         `if [ -d "$INSTALL_DIR" ]; then`,
         `  echo "✗ 目录已存在：$INSTALL_DIR" >&2`,
         `  echo "  请先移除或使用其它实例名" >&2`,
@@ -916,27 +984,11 @@ createApp({
         `mkdir -p "$INSTALL_DIR"`,
         `cd "$INSTALL_DIR"`,
         ``,
-      );
-      if (initURL) {
-        lines.push(
-          `# ============ 下载并解压附加运行文件 ============`,
-          `INIT_URL=${shq(initURL)}`,
-          `echo "==> 下载附加文件"`,
-          `curl -fL --retry 3 -o init.zip "$INIT_URL"`,
-          `echo "==> 解压"`,
-          `unzip -oq init.zip`,
-          `rm -f init.zip`,
-          ``,
-        );
-      }
-      lines.push(
-        `# ============ 写入 docker-compose.yml ============`,
         `echo "==> 写入 docker-compose.yml"`,
         `cat > docker-compose.yml <<'MARKETPLACE_COMPOSE_EOF'`,
         compose.replace(/\r\n/g, '\n').replace(/\n+$/, ''),
         `MARKETPLACE_COMPOSE_EOF`,
         ``,
-        `# ============ 启动 ============`,
         `echo "==> docker compose up -d"`,
         `docker compose -p "$APP_NAME" up -d`,
         ``,
@@ -945,8 +997,7 @@ createApp({
         `echo "  应用：$APP_KEY ($APP_VERSION)"`,
         `echo "  实例：$APP_NAME"`,
         `echo "  目录：$INSTALL_DIR"`,
-        ``,
-      );
+      ];
       return lines.join('\n');
     };
 
@@ -971,8 +1022,9 @@ createApp({
     const confirmInstall = () => {
       installError.value = '';
       if (!installForm.value.name.trim()) { installError.value = '请填写名称'; return; }
-      if (metaLoading.value) { installError.value = '版本信息加载中，请稍候'; return; }
-      if (!currentMeta.value) { installError.value = '版本信息加载失败，请刷新重试'; return; }
+      if (appLoading.value) { installError.value = '应用信息加载中，请稍候'; return; }
+      if (!currentApp.value) { installError.value = '应用信息加载失败，请刷新重试'; return; }
+      if (!currentApp.value.compose) { installError.value = '未找到 docker-compose 文件，无法安装'; return; }
       const missing = currentFormFields.value.find(
         f => f.required && !f.disabled && (installForm.value.fields[f.envKey] === '' || installForm.value.fields[f.envKey] == null)
       );
@@ -982,16 +1034,15 @@ createApp({
       }
 
       const payload = buildInstallPayload();
+      if (!payload) { installError.value = '构建安装信息失败'; return; }
       installPanel.value = null;
 
-      // 嵌入时投递给父窗口，独立访问时弹 shell 脚本（标记见 <head> 内联脚本）
       if (document.documentElement.classList.contains('embed')) {
-        // 传给父窗口的对象需为纯结构化数据，去掉 __scriptContext（不可枚举，天然不会序列化）
         window.parent.postMessage(payload, '*');
         return;
       }
       scriptPreview.value = {
-        key: (payload.__scriptContext && payload.__scriptContext.appKey) || payload.name,
+        key: payload.__scriptContext?.appKey || payload.name,
         name: payload.name,
         script: buildInstallScript(payload),
       };
@@ -1000,11 +1051,11 @@ createApp({
     };
 
     return {
-      loading, error, storeVersion, tags, activeTag, searchQuery,
+      loading, error, tags, activeTag, searchQuery,
       filteredApps, detail, readmeHtml, readmeLoading, imgErrors,
       tagName, tagIcon, appIconUrl, latestVersion, openDetail, lazyImg,
       installPanel, installForm, showPasswords, currentFormFields, installError,
-      metaLoading, metaError,
+      appLoading, appError,
       onVersionChange, openInstall, confirmInstall,
       scriptPreview, scriptCopied, scriptError, copyScript,
     };

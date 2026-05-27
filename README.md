@@ -22,6 +22,10 @@ appstore/
 │   ├── Dockerfile           # 多阶段构建：Python 构建 + Nginx 运行
 │   ├── index.html           # 前端单页应用（Vue 3 + Tailwind CSS）
 │   └── README.md            # 前端详细说明
+├── aapanel/
+│   ├── build.py             # 构建脚本：下载 aaPanel 源码 → 生成 index.json + storage/
+│   ├── Dockerfile           # 多阶段构建：Python 构建 + Nginx 运行
+│   └── README.md            # aaPanel 数据源说明
 └── README.md                # 本文件
 ```
 
@@ -44,6 +48,15 @@ python 1panel/build.py
 ```
 
 构建产物：`1panel/index.json` + `1panel/storage/`
+
+如果要使用 aaPanel 应用源，请改为：
+
+```bash
+pip install pyyaml
+python aapanel/build.py
+```
+
+构建产物：`aapanel/index.json` + `aapanel/storage/`
 
 ### 本地运行
 
