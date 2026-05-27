@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>aaPanel 应用商店</title>
+  <title>Docker 应用商店</title>
   <script src="https://jscdn.rehi.org/npm/tailwindcss-cdn@3/tailwindcss.min.js"></script>
   <script src="https://jscdn.rehi.org/npm/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://jscdn.rehi.org/npm/marked@15/marked.min.js"></script>
   <script src="https://jscdn.rehi.org/npm/js-yaml@4/dist/js-yaml.min.js"></script>
   <link rel="stylesheet" href="https://jscdn.rehi.org/npm/@fortawesome/fontawesome-free@6/css/all.min.css">
   <link rel="stylesheet" href="https://jscdn.rehi.org/npm/github-markdown-css/github-markdown-light.min.css">
@@ -16,23 +15,56 @@
     catch (_) { document.documentElement.classList.add('embed'); }
   </script>
   <style>
+    /* Vue 相关 */
     [v-cloak] { display: none; }
     html.embed .app-header { display: none; }
+    
+    /* 滚动条隐藏（跨浏览器） */
     .scrollbar-hide::-webkit-scrollbar { display: none; }
     .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    
     /* 表单输入框：多处复用，原子类写法过长，保留语义类 */
-    .input { width: 100%; padding: 0.625rem 1rem; font-size: 0.875rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #fff; color: #334155; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    .input { 
+      width: 100%; 
+      padding: 0.625rem 1rem; 
+      font-size: 0.875rem; 
+      border: 1px solid #e2e8f0; 
+      border-radius: 0.75rem; 
+      background: #fff; 
+      color: #334155; 
+      outline: none; 
+      transition: border-color 0.2s, box-shadow 0.2s; 
+    }
     .input::placeholder { color: #94a3b8; }
     .input:hover { border-color: #cbd5e1; }
     .input:focus { border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(14,165,233,0.1); }
     .input:disabled { opacity: 0.5; cursor: not-allowed; }
     select.input { cursor: pointer; padding-right: 2rem; }
     @media (max-width: 768px) { .input { padding-top: 0.75rem; padding-bottom: 0.75rem; } }
+    
     /* alert 入场动画：Tailwind CDN 无法扩展 theme，keyframes 需保留 */
     @keyframes slideDownFade {
       from { opacity: 0; transform: translateY(-6px); }
       to   { opacity: 1; transform: translateY(0); }
     }
+    
+    /* datalist 美化：自定义下拉外观 */
+    .datalist-wrap { position: relative; }
+    .datalist-list { 
+      position: absolute; 
+      left: 0; 
+      right: 0; 
+      top: calc(100% + 6px); 
+      background: white; 
+      border: 1px solid #e6e9ee; 
+      border-radius: 8px; 
+      box-shadow: 0 8px 24px rgba(15,23,42,0.08); 
+      max-height: 220px; 
+      overflow: auto; 
+      z-index: 50; 
+    }
+    .datalist-item { padding: 8px 12px; font-size: 14px; color: #0f172a; cursor: pointer; }
+    .datalist-item:hover { background: #f8fafc; }
   </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
@@ -46,7 +78,7 @@
         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-sky-500/30">
           <i class="fa-solid fa-cubes text-white text-base"></i>
         </div>
-        <h1 class="text-base md:text-lg font-semibold text-slate-800 truncate">aaPanel 应用市场</h1>
+        <h1 class="text-base md:text-lg font-semibold text-slate-800 truncate">Docker 应用商店</h1>
       </div>
 
       <!-- 右侧：GitHub -->
@@ -86,18 +118,18 @@
         >
           <i class="fa-solid fa-border-all text-xs w-4 text-center"></i><span>全部</span>
         </button>
+        <template v-for="tag in tags" :key="tag.key">
         <button
-          v-for="tag in tags"
-          :key="tag.key"
+          v-if="tag && tag.key"
           @click="activeTag = tag.key"
           :class="['w-full text-left px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-2', activeTag === tag.key ? 'bg-sky-50 text-sky-600 font-medium' : 'text-slate-600 hover:bg-slate-50']"
         >
           <i :class="['text-xs w-4 text-center', tagIcon(tag.key)]"></i><span class="truncate">{{ tag.name }}</span>
         </button>
+        </template>
       </nav>
     </aside>
-
-    <!-- 右侧内容 -->
+      <!-- 右侧内容 -->
     <main class="flex-1 min-w-0">
 
       <!-- 移动端：搜索框 + 分类横滚（sticky 固定到顶部） -->
@@ -119,12 +151,13 @@
               @click="activeTag = ''"
               :class="['flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all', activeTag === '' ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/30' : 'bg-white border border-slate-200 text-slate-600']"
             >全部</button>
+            <template v-for="tag in tags" :key="tag.key">
             <button
-              v-for="tag in tags"
-              :key="tag.key"
+              v-if="tag && tag.key"
               @click="activeTag = tag.key"
               :class="['flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all', activeTag === tag.key ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/30' : 'bg-white border border-slate-200 text-slate-600']"
             >{{ tag.name }}</button>
+            </template>
           </div>
         </div>
       </div>
@@ -155,9 +188,9 @@
 
       <!-- 应用网格 -->
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <template v-for="app in filteredApps" :key="app.key">
         <div
-          v-for="app in filteredApps"
-          :key="app.key"
+          v-if="app && app.key"
           @click="openDetail(app)"
           class="bg-white rounded-2xl border border-slate-200 p-4 cursor-pointer hover:shadow-lg hover:shadow-sky-500/5 hover:border-sky-200 transition-all group"        >
           <div class="flex items-start gap-3">
@@ -188,6 +221,7 @@
             <span class="text-xs text-slate-400 font-mono">{{ latestVersion(app) }}</span>
           </div>
         </div>
+        </template>
       </div>
     </main>
   </div>
@@ -195,7 +229,7 @@
   <!-- 详情弹窗 -->
   <div v-if="detail" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click.self="detail = null">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="detail = null"></div>
-    <div class="relative bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col m-2 z-10">
+    <div class="relative bg-white w-full sm:max-w-3xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col m-2 z-10">
 
       <!-- 弹窗头部 -->
       <div class="bg-slate-50 border-b border-slate-200 rounded-t-2xl px-4 md:px-6 py-3 flex-shrink-0">
@@ -203,6 +237,7 @@
         <div class="hidden md:flex items-center justify-between">
           <div class="flex items-center gap-3">
             <img
+              v-if="detail"
               :src="appIconUrl(detail.key)"
               :alt="detail.name"
               class="w-10 h-10 rounded-xl bg-slate-100"
@@ -226,6 +261,7 @@
         <!-- 移动端 -->
         <div class="flex md:hidden items-center gap-2">
           <img
+            v-if="detail"
             :src="appIconUrl(detail.key)"
             :alt="detail.name"
             class="w-9 h-9 rounded-xl bg-slate-100 flex-shrink-0"
@@ -245,7 +281,7 @@
       </div>
 
       <!-- 弹窗内容 -->
-      <div class="overflow-y-auto flex-1 p-4 md:p-6 space-y-5">
+      <div v-if="detail" class="overflow-y-auto flex-1 p-4 md:p-6 space-y-5">
 
         <!-- 描述 -->
         <p class="text-sm text-slate-600 leading-relaxed">{{ detail.description?.zh || detail.description || detail.title }}</p>
@@ -272,7 +308,7 @@
         </div>
 
         <!-- 版本列表 -->
-        <div>
+        <div v-if="detail && detail.versions">
           <h4 class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">可用版本</h4>
           <div class="flex flex-wrap gap-1.5">
             <span
@@ -281,18 +317,6 @@
               class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-mono"
             >{{ version }}</span>
           </div>
-        </div>
-
-        <!-- README -->
-        <div v-if="readmeHtml || readmeLoading" class="border-t border-slate-200 pt-5 -mx-4 md:-mx-6 px-4 md:px-6 bg-slate-50 rounded-b-2xl pb-4">
-          <div class="flex items-center gap-2 mb-4">
-            <i class="fa-solid fa-file-lines text-slate-400 text-xs"></i>
-            <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">README</h4>
-          </div>
-      <div v-if="readmeLoading" class="flex items-center justify-center py-10 text-slate-400">
-            <div class="w-6 h-6 border-[3px] border-slate-200 border-t-sky-500 rounded-full animate-spin mr-2"></div>加载中...
-          </div>
-          <div v-else class="markdown-body text-sm !bg-transparent" v-html="readmeHtml"></div>
         </div>
 
       </div>
@@ -309,10 +333,10 @@
   <!-- 安装表单面板 -->
   <div v-if="installPanel" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click.self="installPanel = null">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="installPanel = null"></div>
-    <div class="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col m-2 z-10">
+    <div class="relative bg-white w-full sm:max-w-3xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col m-2 z-10">
 
       <!-- 安装面板头部 -->
-      <div class="bg-slate-50 border-b border-slate-200 rounded-t-2xl px-4 md:px-6 py-3 flex-shrink-0">
+      <div v-if="installPanel" class="bg-slate-50 border-b border-slate-200 rounded-t-2xl px-4 md:px-6 py-3 flex-shrink-0">
         <!-- 桌面 -->
         <div class="hidden md:flex items-center justify-between">
           <div class="flex items-center gap-2">
@@ -351,15 +375,28 @@
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1"><span class="text-red-500 mr-0.5">*</span>版本</label>
             <div class="relative">
-              <select v-model="installForm.version" @change="onVersionChange" class="input appearance-none pr-8">
-                <option v-for="(_, v) in installPanel.versions" :key="v" :value="v">{{ v }}</option>
-              </select>
-              <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+              <!-- 可编辑的版本输入（自定义下拉样式替代原生 datalist） -->
+              <div class="datalist-wrap">
+                <input
+                  v-model="installForm.version"
+                  @input="handleVersionInput"
+                  @focus="showVersionList()"
+                  @keydown.enter.prevent="onVersionEnter"
+                  @blur="hideVersionListDelayed()"
+                  class="input pr-8"
+                />
+                <i class="fa-solid fa-caret-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                <div v-if="versionListVisible && filteredVersions.length" class="datalist-list">
+                  <div v-for="v in filteredVersions" :key="v" class="datalist-item" @mousedown.prevent="selectVersion(v)">{{ v }}</div>
+                </div>
+              </div>
+              <i class="fa-solid fa-caret-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
             </div>
           </div>
 
-          <!-- 动态表单字段 -->
-          <template v-for="field in currentFormFields" :key="field.envKey">
+          <!-- 动态表单字段：防护 field 为空或未定义 -->
+          <template v-for="(field, idx) in currentFormFields" :key="(field && field.envKey) ? field.envKey : idx">
+            <template v-if="field && field.envKey !== 'VERSION'">
             <!-- 密码字段 -->
             <div v-if="field.type === 'password'">
               <label class="block text-sm font-medium text-slate-700 mb-1">
@@ -429,7 +466,7 @@
                 v-model="installForm.fields[field.envKey]"
                 type="text"
                 class="input"
-                :placeholder="`请输入 ${field.label?.zh || field.label?.en || field.label}`"
+                :placeholder="(field.default === '*' ? `请输入 ${field.label?.zh || field.label?.en || field.label}` : (field.default || `请输入 ${field.label?.zh || field.label?.en || field.label}`))"
               />
             </div>
 
@@ -447,6 +484,7 @@
             </div>
 
             <p v-if="field.suffix" class="text-slate-500 text-xs mt-2">{{ field.suffix }}</p>
+            </template>
           </template>
 
           <!-- meta.yml 加载状态提示 -->
@@ -480,7 +518,7 @@
   <!-- 安装脚本预览（非 iframe 环境） -->
   <div v-if="scriptPreview" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" @click.self="scriptPreview = null">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="scriptPreview = null"></div>
-    <div class="relative bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col m-2 z-10">
+    <div class="relative bg-white w-full sm:max-w-3xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col m-2 z-10">
 
       <!-- 头部 -->
       <div class="bg-slate-50 border-b border-slate-200 rounded-t-2xl px-4 md:px-6 py-3 flex-shrink-0 flex items-center justify-between">
@@ -529,16 +567,6 @@
 <script>
 const { createApp, ref, computed, onMounted } = Vue;
 
-// 配置 marked：链接在新标签页打开
-marked.use({
-  renderer: {
-    link({ href, title, text }) {
-      const t = title ? ` title="${title}"` : '';
-      return `<a href="${href}"${t} target="_blank" rel="noopener">${text}</a>`;
-    }
-  }
-});
-
 createApp({
   setup() {
     const loading = ref(true);
@@ -548,8 +576,6 @@ createApp({
     const activeTag = ref('');
     const searchQuery = ref('');
     const detail = ref(null);
-    const readmeHtml = ref('');
-    const readmeLoading = ref(false);
     const imgErrors = ref({});
 
     const tagMap = computed(() => {
@@ -560,27 +586,25 @@ createApp({
 
     const tagName = (key) => tagMap.value[key] || key;
 
-    const tagIcon = (key) => {
-      const icons = {
-        AI: 'fa-solid fa-robot',
-        Website: 'fa-solid fa-globe',
-        Database: 'fa-solid fa-database',
-        Server: 'fa-solid fa-server',
-        Runtime: 'fa-solid fa-layer-group',
-        Tool: 'fa-solid fa-wrench',
-        Storage: 'fa-solid fa-hard-drive',
-        BI: 'fa-solid fa-chart-bar',
-        CRM: 'fa-solid fa-users',
-        Security: 'fa-solid fa-shield-halved',
-        DevTool: 'fa-solid fa-code',
-        DevOps: 'fa-solid fa-gears',
-        Middleware: 'fa-solid fa-puzzle-piece',
-        Media: 'fa-solid fa-photo-film',
-        Email: 'fa-solid fa-envelope',
-        Local: 'fa-solid fa-house',
-      };
-      return icons[key] || 'fa-solid fa-tag';
-    };
+    // 分类图标映射表（提取为常量，便于维护）
+    // 键名对应 app.json 中的 apptype 字段值
+    const TAG_ICONS = Object.freeze({
+      AI: 'fa-solid fa-robot',               // AI/大模型
+      BuildWebsite: 'fa-solid fa-globe',       // 建站
+      Database: 'fa-solid fa-database',        // 数据库
+      DevOps: 'fa-solid fa-gears',            // DevOps
+      Email: 'fa-solid fa-envelope',          // 邮件/邮局
+      MCP: 'fa-solid fa-plug',               // MCP服务
+      Media: 'fa-solid fa-photo-film',        // 多媒体
+      Middleware: 'fa-solid fa-puzzle-piece', // 中间件
+      nas: 'fa-solid fa-house',               // Nas/NAS
+      Storage: 'fa-solid fa-hard-drive',      // 存储/网盘
+      System: 'fa-solid fa-server',           // 系统
+      Tools: 'fa-solid fa-wrench',           // 实用工具
+    });
+    const DEFAULT_TAG_ICON = 'fa-solid fa-tag';
+    
+    const tagIcon = (key) => TAG_ICONS[key] || DEFAULT_TAG_ICON;
 
     const appIconUrl = (key) => `./storage/apps/${key}/ico-dkapp_${key}.png`;
 
@@ -601,6 +625,16 @@ createApp({
     const lazyImg = (el) => {
       if (el && el.dataset.src) lazyObserver.observe(el);
     };
+
+    // 全局错误捕获（设置在 setup 内，确保能捕获组件生命周期内抛出的错误）
+    try {
+      window.addEventListener('error', (ev) => {
+        // global error overlay handlers removed
+      });
+      // unhandledrejection handler removed
+    } catch (e) {
+      console.warn('无法注册全局错误捕获', e);
+    }
 
     // 取最新版本：按语义化版本排序后取最大值
     const latestVersion = (app) => {
@@ -652,27 +686,8 @@ createApp({
       return list;
     });
 
-    const loadReadme = async (key) => {
-      readmeLoading.value = true;
-      readmeHtml.value = '';
-      try {
-        const res = await fetch(`./storage/apps/${key}/README.md`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        readmeHtml.value = marked.parse(text);
-      } catch (e) {
-        // 404 静默不显示，其他错误提示
-        if (!e.message.includes('404')) {
-          readmeHtml.value = `<p class="text-slate-400 text-sm">README 加载失败</p>`;
-        }
-      } finally {
-        readmeLoading.value = false;
-      }
-    };
-
     const openDetail = (app) => {
       detail.value = app;
-      loadReadme(app.key);
     };
 
     onMounted(async () => {
@@ -680,12 +695,13 @@ createApp({
         const res = await fetch('./storage/pkg/apps.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const categories = new Set();
+        const categories = new Map(); // 使用 Map 存储 apptype -> appTypeCN 映射
         const apps = (Array.isArray(data) ? data : []).map(item => {
+          if (!item) return null;
           const tags = [];
-          if (item.appTypeCN) {
-            tags.push(item.appTypeCN);
-            categories.add(item.appTypeCN);
+          if (item.apptype && item.appTypeCN) {
+            tags.push(item.apptype); // 使用 apptype 作为 tag key
+            categories.set(item.apptype, item.appTypeCN); // 存储映射关系
           }
           return {
             key: item.appname,
@@ -703,8 +719,9 @@ createApp({
             volumes: item.volumes || {},
             help: item.help || '',
           };
-        });
-        tags.value = [...categories].sort().map(key => ({ key, name: key }));
+        }).filter(Boolean); // 过滤掉 null 值
+        // tags.value: key 为 apptype（英文），name 为 appTypeCN（中文）
+        tags.value = [...categories.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([key, name]) => ({ key, name }));
         allApps.value = apps.sort((a, b) => a.name.localeCompare(b.name));
       } catch (e) {
         console.error('加载应用数据失败', e);
@@ -727,7 +744,43 @@ createApp({
     const appLoading = ref(false);
     const appError = ref('');
 
-    const currentFormFields = computed(() => currentApp.value?.formFields || []);
+    // 自定义版本下拉状态与过滤
+    const versionListVisible = ref(false);
+    const filteredVersions = computed(() => {
+      const vmap = installPanel.value?.versions || {};
+      const keys = Object.keys(vmap || {});
+      const q = String(installForm.value.version || '').toLowerCase();
+      if (!q) return keys.slice(0, 50);
+      return keys.filter(k => k.toLowerCase().includes(q)).slice(0, 50);
+    });
+    let _hideTimer = null;
+    const showVersionList = () => { if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; } versionListVisible.value = true; };
+    const hideVersionListDelayed = () => { if (_hideTimer) clearTimeout(_hideTimer); _hideTimer = setTimeout(() => { versionListVisible.value = false; _hideTimer = null; }, 150); };
+    const selectVersion = (v) => { installForm.value.version = v; onVersionChange(); versionListVisible.value = false; };
+    const onVersionEnter = () => { if (versionListVisible.value && filteredVersions.value.length) { selectVersion(filteredVersions.value[0]); } else { onVersionChange(); versionListVisible.value = false; } };
+    const handleVersionInput = (e) => { onVersionChange(); showVersionList(); };
+
+    // 判断是否允许外部访问（根据 ALLOW_ACCESS 字段值）
+    const isAccessAllowed = (fields) => {
+      const v = fields && fields['ALLOW_ACCESS'];
+      if (v === undefined || v === null) return true;
+      if (typeof v === 'boolean') return v;
+      const s = String(v).toLowerCase();
+      return !(s === 'false' || s === '0' || s === 'no' || s === 'n');
+    };
+
+    const currentFormFields = computed(() => {
+      const fields = currentApp.value?.formFields || [];
+      if (isAccessAllowed(installForm.value.fields)) return fields;
+      // 如果不允许外部访问，排除可能的 HOST / *_PORT 字段
+      return fields.filter(f => {
+        if (!f || !f.envKey) return false;
+        const k = String(f.envKey).toUpperCase();
+        if (k.includes('HOST') && !k.includes('HOSTNAME')) return false;
+        if (k.endsWith('_PORT') || k === 'PORT' || k.endsWith('PORTS')) return false;
+        return true;
+      });
+    });
 
     const normalizeValue = (value, type) => {
       if (type === 'checkbox') {
@@ -750,10 +803,27 @@ createApp({
       return 'text';
     };
 
+    // 需要特殊处理的字段默认值
+    const SPECIAL_DEFAULTS = Object.freeze({
+      HOST_IP: '0.0.0.0',
+      APP_PATH: '.',
+    });
+    
+    // 获取字段的默认值（统一处理特殊字段）
+    const getFieldDefault = (envKey, rawDefault) => {
+      // 如果默认值是 '*'（通配符/任意域名），改为空字符串
+      if (rawDefault === '*') return '';
+      const upperKey = String(envKey).toUpperCase();
+      return SPECIAL_DEFAULTS[upperKey] ?? (rawDefault ?? '');
+    };
+    
     // 根据 formFields 初始化表单字段默认值
     const initFormFields = (fields) => {
       const result = {};
-      (fields || []).forEach(f => { result[f.envKey] = f.default ?? ''; });
+      (fields || []).forEach(f => {
+        if (!f || !f.envKey) return;
+        result[f.envKey] = getFieldDefault(f.envKey, f.default);
+      });
       return result;
     };
 
@@ -761,15 +831,17 @@ createApp({
       const fields = [];
       const seen = new Set();
 
-      (appJson.field || []).forEach(item => {
+      const processField = (item, nameSource) => {
         const attr = item.attr || item.key;
         if (!attr) return;
         const envKey = String(attr).trim().toUpperCase();
+        if (seen.has(envKey)) return;
         seen.add(envKey);
         const type = mapFieldType(item.type);
-        const defaultValue = normalizeValue(item.default, type);
+        const rawDefault = normalizeValue(item.default, type);
+        const defaultValue = getFieldDefault(envKey, rawDefault);
         fields.push({
-          label: { zh: item.name || envKey, en: item.name || envKey },
+          label: { zh: nameSource || envKey, en: nameSource || envKey },
           envKey,
           type,
           default: defaultValue,
@@ -777,26 +849,10 @@ createApp({
           suffix: item.suffix || item.unit || '',
           unit: item.unit || '',
         });
-      });
+      };
 
-      (appJson.env || []).forEach(item => {
-        const key = item.key;
-        if (!key) return;
-        const envKey = String(key).trim().toUpperCase();
-        if (seen.has(envKey)) return;
-        seen.add(envKey);
-        const type = mapFieldType(item.type);
-        const defaultValue = normalizeValue(item.default, type);
-        fields.push({
-          label: { zh: item.desc || envKey, en: item.desc || envKey },
-          envKey,
-          type,
-          default: defaultValue,
-          required: item.default == null || item.default === '',
-          suffix: '',
-          unit: '',
-        });
-      });
+      (appJson.field || []).forEach(item => processField(item, item.name));
+      (appJson.env || []).forEach(item => processField(item, item.desc));
 
       return fields;
     };
@@ -808,11 +864,8 @@ createApp({
     };
 
     const loadComposeText = async (appKey) => {
+      // 扁平化结构：apps/应用名/ 直接包含文件
       const candidates = [
-        `./storage/apps/${appKey}/${appKey}/docker-compose.yml`,
-        `./storage/apps/${appKey}/${appKey}/docker-compose.yaml`,
-        `./storage/apps/${appKey}/${appKey}/compose.yml`,
-        `./storage/apps/${appKey}/${appKey}/compose.yaml`,
         `./storage/apps/${appKey}/docker-compose.yml`,
         `./storage/apps/${appKey}/docker-compose.yaml`,
         `./storage/apps/${appKey}/compose.yml`,
@@ -846,6 +899,14 @@ createApp({
           compose,
         };
         installForm.value.fields = initFormFields(fields);
+        // 如果存在版本字段（env key: VERSION），用已选择的版本填充默认值
+        try {
+          const versionKey = 'VERSION';
+          if (!installForm.value.fields) installForm.value.fields = {};
+          if (installForm.value.version) installForm.value.fields[versionKey] = installForm.value.version;
+        } catch (e) {
+          // 忽略填充值错误
+        }
       } catch (e) {
         currentApp.value = null;
         appError.value = '加载应用信息失败：' + (e.message || String(e));
@@ -858,10 +919,20 @@ createApp({
       showPasswords.value = {};
       installError.value = '';
       appError.value = '';
+      // 切换版本时把所选版本写入 VERSION 字段（若存在）
+      try {
+        const versionKey = 'VERSION';
+        if (!installForm.value.fields) installForm.value.fields = {};
+        installForm.value.fields[versionKey] = installForm.value.version;
+      } catch (e) {
+        // 忽略
+      }
     };
 
     const openInstall = (app) => {
       const ver = latestVersion(app);
+      // Close detail panel when opening install to avoid multiple overlays
+      detail.value = null;
       installPanel.value = app;
       installForm.value = {
         name: app.key,
@@ -882,8 +953,8 @@ createApp({
     };
 
     // 此处网络名必须与 build.py 中的 NETWORK_NAME 保持一致
-    // 网络名是 compose 文件里写死的外部依赖，父程序必须知道才能保证容器互通
-    const NETWORK_NAME = 'app-network';
+    // 默认网络改为 sdnet（按需求替换）
+    const NETWORK_NAME = 'sdnet';
     // 仅 shell 脚本预览使用的本地安装根目录，不随 payload 提交
     // 父程序（面板/运维平台）通常有自己的安装位置策略，由其自行决定
     const LOCAL_INSTALL_ROOT = '/opt/apps';
@@ -930,13 +1001,36 @@ createApp({
         CONTAINER_NAME: safeName,
         NETWORK_NAME,
       };
-      const composeText = interpolateCompose(currentApp.value?.compose || '', env);
+      // 在生产 compose 生成时，过滤掉与域名相关的环境变量（避免在产物中暴露或使用域名字段）
+      const envForCompose = Object.assign({}, env);
+      Object.keys(envForCompose).forEach(k => {
+        if (String(k).toUpperCase().includes('DOMAIN')) delete envForCompose[k];
+      });
+      let composeText = interpolateCompose(currentApp.value?.compose || '', envForCompose);
+
+      // 如果用户选择不允许外部访问（ALLOW_ACCESS 为 false），则删除 compose 中的主机端口映射
+      if (!isAccessAllowed(env)) {
+        composeText = stripHostPorts(composeText);
+      }
+      
+      // 构造基础 payload
       const raw = {
         source: 'aaPanel-raw',
         type: 'install',
         name: safeName,
         compose: composeText,
       };
+      
+      // 根据 app.json 中的 has_app_files 字段判断是否添加 initURL
+      // 扁平化结构：app_files.zip 与 app.json 同级目录
+      if (currentApp.value?.appJson?.has_app_files) {
+        const appFilesUrl = new URL(window.location.href);
+        appFilesUrl.pathname = appFilesUrl.pathname.replace(/\/index\.html$/, '');
+        const appFilesPath = `/storage/apps/${app.key}/app_files.zip`;
+        appFilesUrl.pathname = appFilesUrl.pathname.replace(/\/$/, '') + appFilesPath;
+        raw.initURL = appFilesUrl.toString();
+      }
+      
       Object.defineProperty(raw, '__scriptContext', {
         enumerable: false,
         value: {
@@ -948,57 +1042,81 @@ createApp({
       return raw;
     };
 
+    // 移除 compose 文本中的主机端口映射（形式如 - "80:80" 或 - 127.0.0.1:8080:80）
+    // 使用正则一次性匹配并替换，比状态机更简洁
+    const stripHostPorts = (text) => {
+      if (!text) return text;
+      // 匹配 ports: 块中包含主机端口映射的行（形如 - "8080:80" 或 - 127.0.0.1:8080:80）
+      // 保留仅包含容器端口的映射（形如 - "80"）
+      return text.replace(/^(\s*)ports:\s*\n(?:\s+-\s+["']?(?:\d+\.\d+\.\d+\.\d+:)?\d+:\d+["']?\s*\n)*/gm, (match, indent) => {
+        // 过滤掉包含主机端口的行，保留仅容器端口的行
+        const lines = match.split(/\r?\n/);
+        const filtered = lines.filter(line => {
+          if (!line.trim().startsWith('-')) return true; // 保留非列表行
+          // 检查是否包含主机端口映射（包含 : 且有多个端口）
+          const portValue = line.replace(/^\s*-\s*["']?/, '').replace(/["']?\s*$/, '');
+          return !portValue.includes(':') || portValue.split(':').length <= 1;
+        });
+        const result = filtered.join('\n');
+        // 如果 ports: 块中没有有效的端口映射，删除整个块
+        return result.trim() === 'ports:' ? '' : result;
+      });
+    };
+
+    // Shell 字符串转义（用于 bash 单引号字符串）
+    const shq = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;
+    
     // 生成安装 shell 脚本（非 iframe 环境使用）
     const buildInstallScript = (payload) => {
-      const shq = (v) => `'${String(v).replace(/'/g, `'\\''`)}'`;
       const { name, compose } = payload;
       const ctx = payload.__scriptContext || {};
       const appKey = ctx.appKey || name;
       const versionValue = ctx.versionValue || '';
-      const networkName = ctx.networkName || 'app-network';
-      const lines = [
-        `#!/usr/bin/env bash`,
-        `# ${appKey} ${versionValue} 安装脚本`,
-        `set -euo pipefail`,
-        ``,
-        `command -v docker >/dev/null 2>&1 || { echo "✗ 未检测到 docker，请先安装 Docker" >&2; exit 1; }`,
-        `docker compose version >/dev/null 2>&1 || { echo "✗ 未检测到 docker compose 插件（docker compose v2）" >&2; exit 1; }`,
-        ``,
-        `APP_KEY=${shq(appKey)}`,
-        `APP_NAME=${shq(name)}`,
-        `APP_VERSION=${shq(versionValue)}`,
-        `INSTALL_ROOT=${shq(LOCAL_INSTALL_ROOT)}`,
-        `INSTALL_DIR="$INSTALL_ROOT/$APP_KEY/$APP_NAME"`,
-        `NETWORK_NAME=${shq(networkName)}`,
-        ``,
-        `if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then`,
-        `  echo "==> 创建网络 $NETWORK_NAME"`,
-        `  docker network create "$NETWORK_NAME" >/dev/null`,
-        `fi`,
-        ``,
-        `if [ -d "$INSTALL_DIR" ]; then`,
-        `  echo "✗ 目录已存在：$INSTALL_DIR" >&2`,
-        `  echo "  请先移除或使用其它实例名" >&2`,
-        `  exit 1`,
-        `fi`,
-        `mkdir -p "$INSTALL_DIR"`,
-        `cd "$INSTALL_DIR"`,
-        ``,
-        `echo "==> 写入 docker-compose.yml"`,
-        `cat > docker-compose.yml <<'MARKETPLACE_COMPOSE_EOF'`,
-        compose.replace(/\r\n/g, '\n').replace(/\n+$/, ''),
-        `MARKETPLACE_COMPOSE_EOF`,
-        ``,
-        `echo "==> docker compose up -d"`,
-        `docker compose -p "$APP_NAME" up -d`,
-        ``,
-        `echo ""`,
-        `echo "✓ 安装完成"`,
-        `echo "  应用：$APP_KEY ($APP_VERSION)"`,
-        `echo "  实例：$APP_NAME"`,
-        `echo "  目录：$INSTALL_DIR"`,
-      ];
-      return lines.join('\n');
+      const networkName = ctx.networkName || NETWORK_NAME;
+      
+      const composeText = compose.replace(/\r\n/g, '\n').replace(/\n+$/, '');
+      
+      return `#!/usr/bin/env bash
+# ${appKey} ${versionValue} 安装脚本
+set -euo pipefail
+
+command -v docker >/dev/null 2>&1 || { echo "✗ 未检测到 docker，请先安装 Docker" >&2; exit 1; }
+docker compose version >/dev/null 2>&1 || { echo "✗ 未检测到 docker compose 插件（docker compose v2）" >&2; exit 1; }
+
+APP_KEY=${shq(appKey)}
+APP_NAME=${shq(name)}
+APP_VERSION=${shq(versionValue)}
+INSTALL_ROOT=${shq(LOCAL_INSTALL_ROOT)}
+INSTALL_DIR="$INSTALL_ROOT/$APP_KEY/$APP_NAME"
+NETWORK_NAME=${shq(networkName)}
+
+if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+  echo "==> 创建网络 $NETWORK_NAME"
+  docker network create "$NETWORK_NAME" >/dev/null
+fi
+
+if [ -d "$INSTALL_DIR" ]; then
+  echo "✗ 目录已存在：$INSTALL_DIR" >&2
+  echo "  请先移除或使用其它实例名" >&2
+  exit 1
+fi
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
+
+echo "==> 写入 docker-compose.yml"
+cat > docker-compose.yml <<'MARKETPLACE_COMPOSE_EOF'
+${composeText}
+MARKETPLACE_COMPOSE_EOF
+
+echo "==> docker compose up -d"
+docker compose -p "$APP_NAME" up -d
+
+echo ""
+echo "✓ 安装完成"
+echo "  应用：$APP_KEY ($APP_VERSION)"
+echo "  实例：$APP_NAME"
+echo "  目录：$INSTALL_DIR"
+`;
     };
 
     const copyScript = async () => {
@@ -1008,13 +1126,21 @@ createApp({
         await navigator.clipboard.writeText(scriptPreview.value.script);
         scriptCopied.value = true;
         setTimeout(() => { scriptCopied.value = false; }, 1500);
-      } catch (e) {
-        // 兼容：fallback 选中
+      } catch (_) {
+        // 兼容旧浏览器：使用 textarea fallback
         const ta = document.createElement('textarea');
         ta.value = scriptPreview.value.script;
+        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
         document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand('copy'); scriptCopied.value = true; scriptError.value = ''; setTimeout(() => { scriptCopied.value = false; }, 1500); } catch (_) { scriptError.value = '复制失败，请手动选中复制'; }
+        try {
+          document.execCommand('copy');
+          scriptCopied.value = true;
+          scriptError.value = '';
+          setTimeout(() => { scriptCopied.value = false; }, 1500);
+        } catch (_) {
+          scriptError.value = '复制失败，请手动选中复制';
+        }
         document.body.removeChild(ta);
       }
     };
@@ -1052,12 +1178,13 @@ createApp({
 
     return {
       loading, error, tags, activeTag, searchQuery,
-      filteredApps, detail, readmeHtml, readmeLoading, imgErrors,
+      filteredApps, detail, imgErrors,
       tagName, tagIcon, appIconUrl, latestVersion, openDetail, lazyImg,
       installPanel, installForm, showPasswords, currentFormFields, installError,
       appLoading, appError,
       onVersionChange, openInstall, confirmInstall,
       scriptPreview, scriptCopied, scriptError, copyScript,
+      versionListVisible, filteredVersions, selectVersion, showVersionList, hideVersionListDelayed, onVersionEnter, handleVersionInput,
     };
   }
 }).mount('#app');
