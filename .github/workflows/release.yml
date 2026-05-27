@@ -6,7 +6,7 @@ on:
       - "v*.*.*"
 
 jobs:
-  1panel:
+  one-panel:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,7 +33,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  aapanel:
+  aa-panel:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
