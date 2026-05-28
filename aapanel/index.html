@@ -761,7 +761,13 @@ createApp({
     const handleVersionInput = (e) => { onVersionChange(); showVersionList(); };
 
     // 判断是否允许外部访问（根据 ALLOW_ACCESS 字段值）
+    // 在 iframe 中运行时，默认禁止外部访问（isrvd 通过内网管理路由）
     const isAccessAllowed = (fields) => {
+      // 如果在 iframe 中，且 ALLOW_ACCESS 未明确设置，则默认禁止
+      if (document.documentElement.classList.contains('embed')) {
+        const v = fields && fields['ALLOW_ACCESS'];
+        if (v === undefined || v === null || v === '') return false;
+      }
       const v = fields && fields['ALLOW_ACCESS'];
       if (v === undefined || v === null) return true;
       if (typeof v === 'boolean') return v;
@@ -820,9 +826,15 @@ createApp({
     // 根据 formFields 初始化表单字段默认值
     const initFormFields = (fields) => {
       const result = {};
+      const isEmbed = document.documentElement.classList.contains('embed');
       (fields || []).forEach(f => {
         if (!f || !f.envKey) return;
-        result[f.envKey] = getFieldDefault(f.envKey, f.default);
+        let defaultVal = getFieldDefault(f.envKey, f.default);
+        // 在 iframe 中时，ALLOW_ACCESS 默认为 false（禁止外部访问）
+        if (isEmbed && String(f.envKey).toUpperCase() === 'ALLOW_ACCESS') {
+          defaultVal = false;
+        }
+        result[f.envKey] = defaultVal;
       });
       return result;
     };

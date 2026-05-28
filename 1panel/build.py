@@ -32,7 +32,7 @@ SOURCE_URL = "https://github.com/1Panel-dev/appstore/archive/refs/heads/dev.zip"
 # 构建阶段将 compose 文件中原始网络名替换为此值
 # 若修改此值，请同步修改 index.html 中 NETWORK_NAME 默认值
 ORIGINAL_NETWORK_NAME = "1panel-network"
-NETWORK_NAME = "app-network"
+NETWORK_NAME = "sdnet"
 
 # 系统注入的环境变量，不需要纳入 formFields（与 index.html env 对齐）
 SYSTEM_ENV_KEYS = {"CONTAINER_NAME", "APP_NAME", "NETWORK_NAME"}
@@ -318,6 +318,21 @@ def build_index(source_dir: Path) -> dict:
             continue
 
         app_name = app_dir.name
+
+        # 检查该应用是否有任何版本包含 docker-compose.yml
+        has_compose = False
+        for version_dir in app_dir.iterdir():
+            if not version_dir.is_dir():
+                continue
+            compose_path = find_first(version_dir, COMPOSE_FILE_NAMES)
+            if compose_path:
+                has_compose = True
+                break
+
+        if not has_compose:
+            print(f"  [排除] {app_name}: 没有 docker-compose.yml")
+            continue
+
         app_entry = _load_data_yaml(app_dir)
         if app_entry:
             print(f"[应用] {app_name}")
