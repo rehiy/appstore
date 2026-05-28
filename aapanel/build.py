@@ -92,6 +92,11 @@ def _is_domain_env(env: object) -> bool:
 
 def _has_compose_file(app_dir: Path) -> bool:
     """检查应用目录中是否有任何版本包含 docker-compose 文件"""
+    # 先检查应用根目录
+    for compose_name in COMPOSE_FILE_NAMES:
+        if (app_dir / compose_name).is_file():
+            return True
+    # 再检查版本子目录
     for version_dir in app_dir.iterdir():
         if not version_dir.is_dir():
             continue
@@ -383,13 +388,21 @@ def slim_pkg_apps() -> None:
     if not isinstance(data, list):
         print(f"[警告] pkg/apps.json 格式异常，跳过精简")
         return
+    
+    # 只保留 storage/apps/ 中还存在目录的应用
+    existing_apps = {d.name for d in OUTPUT_APPS.iterdir() if d.is_dir()}
+    filtered_data = [item for item in data if item.get('appname') in existing_apps]
+    
     slim_fields = ['appname', 'apptitle', 'appdesc', 'appTypeCN', 'appversion', 'home', 'help', 'icon', 'appstatus', 'sort', 'appid', 'apptype']
     slim_data = []
-    for item in data:
+    for item in filtered_data:
         slim_item = {k: item.get(k) for k in slim_fields if k in item}
         slim_data.append(slim_item)
     with open(pkg_file, 'w', encoding='utf-8') as f:
         json.dump(slim_data, f, ensure_ascii=False, indent=2)
+    removed = len(data) - len(slim_data)
+    if removed > 0:
+        print(f"[精简] 从 apps.json 中移除 {removed} 个已排除的应用")
     print(f"[精简] storage/pkg/apps.json 为列表元数据 ({len(slim_data)} apps)")
 
 
@@ -420,20 +433,6 @@ def app_info_from_json(app_key: str, app_json: dict) -> dict:
         'tags': [app_json.get('appTypeCN')] if app_json.get('appTypeCN') else [],
         'versions': build_versions(app_json),
     }
-
-
-COMPOSE_FILE_NAMES = ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml")
-
-
-def _has_compose_file(app_dir: Path) -> bool:
-    """检查应用目录中是否有任何版本包含 docker-compose 文件"""
-    for version_dir in app_dir.iterdir():
-        if not version_dir.is_dir():
-            continue
-        for compose_name in COMPOSE_FILE_NAMES:
-            if (version_dir / compose_name).is_file():
-                return True
-    return False
 
 
 def remove_apps_without_compose() -> None:

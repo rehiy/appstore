@@ -48,7 +48,17 @@ COMPOSE_VAR_RE = re.compile(
 )
 
 
-# ---------- 通用 helper ----------
+# ---------- 辅助函数 ----------
+
+def _has_compose_file(app_dir: Path) -> bool:
+    """检查应用目录中是否有任何版本包含 docker-compose 文件"""
+    for version_dir in app_dir.iterdir():
+        if not version_dir.is_dir():
+            continue
+        if find_first(version_dir, COMPOSE_FILE_NAMES):
+            return True
+    return False
+
 
 def find_first(directory: Path, names) -> Path | None:
     """在目录下按候选名顺序查找第一个存在的文件（不递归）"""
@@ -319,18 +329,9 @@ def build_index(source_dir: Path) -> dict:
 
         app_name = app_dir.name
 
-        # 检查该应用是否有任何版本包含 docker-compose.yml
-        has_compose = False
-        for version_dir in app_dir.iterdir():
-            if not version_dir.is_dir():
-                continue
-            compose_path = find_first(version_dir, COMPOSE_FILE_NAMES)
-            if compose_path:
-                has_compose = True
-                break
-
-        if not has_compose:
-            print(f"  [排除] {app_name}: 没有 docker-compose.yml")
+        # 检查该应用是否有任何版本包含 docker-compose 文件
+        if not _has_compose_file(app_dir):
+            print(f"  [排除] {app_name}: 没有 docker-compose 文件")
             continue
 
         app_entry = _load_data_yaml(app_dir)
