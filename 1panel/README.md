@@ -1,6 +1,6 @@
-# Docker 应用市场
+# 1Panel 应用市场
 
-现代化的 Docker 应用商店前端，提供可视化的应用浏览、搜索和安装体验。
+基于 [1Panel AppStore](https://github.com/1Panel-dev/appstore) 的 Docker 应用商店前端。
 
 ## 快速开始
 
@@ -9,17 +9,23 @@
 python -m http.server 8080
 
 # Docker 部署
-docker run -d -p 8080:80 rehiy/appstore
+docker run -d -p 8080:80 rehiy/appstore:1panel
 ```
 
-## 构建说明
+## 构建
 
 ```bash
 pip install pyyaml
 python build.py
 ```
 
-构建产物：`index.json`（应用元信息）+ `storage/`（版本详情）
+构建产物：
+
+| 文件 | 说明 |
+|---|---|
+| `index.json` | 应用元信息 + 版本号列表 |
+| `storage/{app}/{version}/meta.yml` | compose 原文、formFields、init.zip |
+| `storage/{app}/logo.png`、`README*.md` | 应用级静态文件 |
 
 ## 嵌入集成
 
@@ -37,6 +43,6 @@ window.addEventListener('message', (event) => {
 
 系统变量 `APP_NAME` / `CONTAINER_NAME` / `NETWORK_NAME` 由前端自动注入。
 
-## 致谢
+## 技术栈
 
-- [1Panel AppStore](https://github.com/1Panel-dev/appstore) — 提供丰富的 Docker 应用模板和配置文件
+Vue 3 · Tailwind CSS · Marked · Font Awesome · PyYAML · Nginx
