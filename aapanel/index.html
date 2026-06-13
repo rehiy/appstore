@@ -1020,6 +1020,12 @@ createApp({
       });
       let composeText = interpolateCompose(currentApp.value?.compose || '', envForCompose);
 
+      // 处理 GPU 配置：根据 gpu 字段决定是否启用 GPU 支持
+      composeText = processGpuConfig(composeText, env);
+      
+      // 处理资源限制：根据 cpus 和 memory_limit 字段动态添加资源限制
+      composeText = processResourceLimits(composeText, env);
+      
       // 如果用户选择不允许外部访问（ALLOW_ACCESS 为 false），则删除 compose 中的主机端口映射
       if (!isAccessAllowed(env)) {
         composeText = stripHostPorts(composeText);
@@ -1054,6 +1060,188 @@ createApp({
       return raw;
     };
 
+    // 处理 GPU 配置：根据 gpu 字段决定是否启用 GPU 支持
+    // 策略：compose 文件中 GPU 配置默认注释，根据 gpu 字段动态取消注释或保持注释
+    const processGpuConfig = (text, env) => {
+      if (!text) return text;
+      const gpuEnabled = env && (env['GPU'] === true || env['GPU'] === 'true' || env['GPU'] === 1 || env['GPU'] === '1');
+      
+      if (gpuEnabled) {
+        // 启用 GPU：取消注释被注释的 GPU 配置块
+        // 匹配模式：以 # 开头的 deploy: 配置块（可能前面有空格缩进）
+        const lines = text.split('\n');
+        const result = [];
+        let inGpuBlock = false;
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          
+          // 检测是否进入被注释的 GPU 配置块
+          // 格式：#    deploy: 或 # deploy:（# 后面可能有空格）
+          const gpuBlockMatch = line.match(/^(\s*)#(\s*)(deploy:\s*)$/);
+          if (gpuBlockMatch && !inGpuBlock) {
+            inGpuBlock = true;
+            // 恢复原始缩进：# 前面的缩进 + # 后面的缩进（通常是 4 个空格）
+            const originalIndent = gpuBlockMatch[1];
+            const commentIndent = gpuBlockMatch[2]; // 注释符号后的缩进
+            result.push(originalIndent + commentIndent + gpuBlockMatch[3]);
+            continue;
+          }
+          
+          // 在 GPU 块内，取消注释所有以 # 开头的行（保持原有缩进）
+          if (inGpuBlock) {
+            const commentMatch = line.match(/^(\s*)#(\s*)(.+)$/);
+            if (commentMatch) {
+              // 取消注释，恢复原始缩进结构
+              result.push(commentMatch[1] + commentMatch[2] + commentMatch[3]);
+              continue;
+            } else {
+              // 遇到非注释行，GPU 块结束
+              inGpuBlock = false;
+            }
+          }
+          
+          result.push(line);
+        }
+        
+        return result.join('\n');
+      } else {
+        // 禁用 GPU：确保 GPU 配置被注释掉（如果当前是启用状态）
+        // 查找未注释的 deploy.resources.reservations.devices 配置块并注释掉
+        const lines = text.split('\n');
+        const result = [];
+        let inGpuBlock = false;
+        let gpuBlockBaseIndent = '';
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          
+          // 检测是否进入未注释的 deploy 块（可能是 GPU 配置）
+          const deployMatch = line.match(/^(\s*)(deploy:\s*)$/);
+          if (deployMatch && !inGpuBlock) {
+            // 检查后面几行是否包含 nvidia/gpu 配置
+            let hasGpuConfig = false;
+            for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
+              if (/driver:\s*nvidia/.test(lines[j]) && !/^\s*#/.test(lines[j])) {
+                hasGpuConfig = true;
+                break;
+              }
+              // 如果遇到其他顶级配置或空行，停止检查
+              if (lines[j].trim() === '' || /^\s+/.test(lines[j])) continue;
+              break;
+            }
+            
+            if (hasGpuConfig) {
+              inGpuBlock = true;
+              gpuBlockBaseIndent = deployMatch[1];
+              result.push(gpuBlockBaseIndent + '# ' + deployMatch[2]);
+              continue;
+            }
+          }
+          
+          // 在 GPU 块内，注释掉所有行（除了已经被注释的）
+          if (inGpuBlock) {
+            // 检查是否到达 GPU 配置块的末尾（capabilities: [gpu] 之后）
+            if (/capabilities:\s*\[\s*gpu\s*\]/.test(line)) {
+              result.push(gpuBlockBaseIndent + '# ' + line.trim());
+              inGpuBlock = false;
+              continue;
+            }
+            
+            // 注释掉当前行（如果还没被注释）
+            if (!/^\s*#/.test(line) && line.trim() !== '') {
+              result.push(gpuBlockBaseIndent + '# ' + line.trim());
+              continue;
+            }
+          }
+          
+          result.push(line);
+        }
+        
+        return result.join('\n');
+      }
+    };
+
+    // 处理资源限制配置：根据 cpus 和 memory_limit 字段动态添加或移除资源限制
+    const processResourceLimits = (text, env) => {
+      if (!text) return text;
+      
+      const cpus = env && env['CPUS'] ? parseFloat(env['CPUS']) : 0;
+      const memory = env && env['MEMORY_LIMIT'] ? parseInt(env['MEMORY_LIMIT']) : 0;
+      
+      // 如果没有设置资源限制，确保 compose 中没有 deploy.resources.limits 配置
+      if (!cpus && !memory) {
+        // 移除可能存在的资源限制配置（未注释的）
+        return text.replace(
+          /(^|\n)(\s*)deploy:\s*\n\2\s+resources:\s*\n(?:\2\s+[^\n]+\n)*/g,
+          (match) => {
+            // 检查这个 deploy 块是否只包含 limits（没有 reservations）
+            if (!/reservations:/.test(match)) {
+              return '';
+            }
+            return match;
+          }
+        );
+      }
+      
+      // 有资源限制设置：添加或更新 deploy.resources.limits 配置
+      const lines = text.split('\n');
+      const result = [];
+      let inDeployBlock = false;
+      let deployIndent = '';
+      let hasLimits = false;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // 检测 deploy: 配置块
+        const deployMatch = line.match(/^(\s*)deploy:\s*$/);
+        if (deployMatch && !inDeployBlock) {
+          inDeployBlock = true;
+          deployIndent = deployMatch[1];
+          result.push(line);
+          continue;
+        }
+        
+        // 在 deploy 块内，检查是否已有 limits 配置
+        if (inDeployBlock) {
+          if (/^\s*resources:\s*$/.test(line)) {
+            result.push(line);
+            continue;
+          }
+          if (/^\s*limits:\s*$/.test(line)) {
+            hasLimits = true;
+            result.push(line);
+            continue;
+          }
+          // 跳过旧的 limits 配置内容
+          if (hasLimits && (/^\s*cpus:/.test(line) || /^\s*memory:/.test(line))) {
+            continue;
+          }
+          // limits 配置结束
+          if (hasLimits && !/^\s+/.test(line)) {
+            hasLimits = false;
+          }
+        }
+        
+        result.push(line);
+        
+        // 在 resources: 行之后添加 limits 配置
+        if (/^\s*resources:\s*$/.test(line) && inDeployBlock) {
+          let limitText = deployIndent + '      limits:\n';
+          if (cpus > 0) {
+            limitText += deployIndent + `        cpus: '${cpus}'\n`;
+          }
+          if (memory > 0) {
+            limitText += deployIndent + `        memory: ${memory}M\n`;
+          }
+          result.push(limitText.trimEnd());
+        }
+      }
+      
+      return result.join('\n');
+    };
+    
     // 移除 compose 文本中的主机端口映射（形式如 - "80:80" 或 - 127.0.0.1:8080:80）
     // 使用正则一次性匹配并替换，比状态机更简洁
     const stripHostPorts = (text) => {
